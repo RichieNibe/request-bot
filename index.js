@@ -9,20 +9,6 @@ async function loadPage(url) {
   return page;
 }
 
-async function addToCart(page) {
-  new Promise((resolve) => setTimeout(resolve, 2000));
-
-  const addToCartButton = await page.waitForSelector("#ProductSubmitButton-");
-  await addToCartButton.click();
-
-  await new Promise((resolve) => setTimeout(resolve, 2000));
-
-  await page.waitForSelector("button[name='checkout']");
-  await page.evaluate(() => {
-    document.querySelector("button[name='checkout']").click();
-  });
-}
-
 async function checkOut(page) {
   await new Promise((resolve) => setTimeout(resolve, 2000));
   await page.waitForSelector("#email");
