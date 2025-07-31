@@ -1,26 +1,30 @@
 {
-  "name": "request-bot",
+  "name": "popmart-bot",
   "version": "1.0.0",
-  "description": "",
-  "homepage": "https://github.com/RichieNibe/request-bot#readme",
-  "bugs": {
-    "url": "https://github.com/RichieNibe/request-bot/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/RichieNibe/request-bot.git"
-  },
-  "license": "ISC",
-  "author": "Richard Ekwenibe",
-  "type": "commonjs",
-  "main": "index.js",
+  "description": "Popmart automation bot",
+  "main": "popmart.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "pkg popmart.js --targets node18-win-x64 --output dist/popmart-bot.exe",
+    "build-all": "pkg popmart.js --targets node18-win-x64,node18-macos-x64,node18-linux-x64 --out-path dist",
+    "start": "node popmart.js"
+  },
+  "pkg": {
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist",
+    "options": [
+      "--no-bytecode"
+    ]
   },
   "dependencies": {
-    "@antiadmin/anticaptchaofficial": "^1.0.52",
-    "puppeteer": "^24.10.0",
+    "nodemailer": "^6.10.1",
+    "prompt-sync": "^4.2.0",
+    "puppeteer": "^24.14.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
   }
 }
