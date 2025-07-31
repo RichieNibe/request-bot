@@ -1,3 +1,4 @@
+require('dotenv').config();
 const puppeteer = require("puppeteer-core");
 const nodemailer = require("nodemailer");
 const prompt = require("prompt-sync")({ sigint: true });
@@ -75,8 +76,8 @@ const transporter = nodemailer.createTransport({
   port: 465,
   secure: true,
   auth: {
-    user: "confirmationbot4@gmail.com",
-    pass: "vfdrjizyxbaupxen",
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
@@ -120,7 +121,6 @@ async function addToCart(page) {
   );
 
   // Click add to cart 6 times
-
   await page.click(
     "div.index_usBtn__2KlEx index_red__kx6Ql index_btnFull__F7k90"
   );
@@ -142,6 +142,14 @@ async function signIn(page, email, password) {
     await page.click(".policy_acceptBtn__ZNU71");
   } catch (error) {
     console.log("Policy button not found or already accepted");
+  }
+  // Click the checkbox first
+  try {
+    await page.waitForSelector(".ant-checkbox-input", { timeout: 5000 });
+    await page.click(".ant-checkbox-input");
+    console.log("Checkbox clicked");
+  } catch (error) {
+    console.log("Checkbox not found or already checked");
   }
 
   await page.waitForSelector("#email");
@@ -166,12 +174,20 @@ async function run() {
     browser = br;
 
     console.log("Navigating to login page...");
-    await page.goto("https://www.popmart.com/us/user/login");
+    await page.goto("https://www.popmart.com/us/user/login", {
+      waitUntil: 'networkidle2'
+    });
+
+
 
     await signIn(page, username, password);
 
     console.log("Navigating to product page...");
-    await page.goto(productLink);
+    await page.goto(productLink, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
 
     await addToCart(page);
 
