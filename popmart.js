@@ -1,14 +1,36 @@
+#!/usr/bin/env node
+const path = require("path");
+const fs = require("fs");
 require('dotenv').config();
-const puppeteer = require("puppeteer-core");
+const puppeteer = require("puppeteer-extra");
 const nodemailer = require("nodemailer");
 const prompt = require("prompt-sync")({ sigint: true });
 const { execSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+
+// Load stealth plugin safely after path is ready
+const StealthPlugin = require("puppeteer-extra-plugin-stealth");
+
+try {
+  puppeteer.use(StealthPlugin());
+  console.log('✅ Stealth plugin loaded successfully');
+} catch (error) {
+  console.log('⚠️ Stealth plugin failed to load, using manual stealth configurations');
+}
 
 function findChrome() {
   const platform = process.platform;
   let chromePaths = [];
+
+  // Check if running as executable (bundled)
+  const isExecutable = process.pkg !== undefined;
+
+  if (isExecutable) {
+    // When running as executable, use bundled chromium
+    const bundledChromePath = path.join(process.execPath, '../chromium/chrome');
+    if (fs.existsSync(bundledChromePath)) {
+      return bundledChromePath;
+    }
+  }
 
   if (platform === "win32") {
     chromePaths = [
@@ -108,8 +130,39 @@ async function loadPage() {
   const browser = await puppeteer.launch({
     headless: false,
     executablePath: chromePath,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-extensions',
+      '--disable-plugins',
+      '--disable-images',
+      '--disable-javascript',
+      '--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ]
   });
+
   const page = await browser.newPage();
+
+  // Set user agent
+  await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+  // Remove webdriver property
+  await page.evaluateOnNewDocument(() => {
+    delete navigator.__proto__.webdriver;
+    Object.defineProperty(navigator, 'webdriver', {
+      get: () => undefined,
+    });
+  });
+
+
   return { browser, page };
 }
 
@@ -117,15 +170,23 @@ async function addToCart(page) {
   console.log("Adding items to cart...");
 
   await page.waitForSelector(
-    "div.index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
+    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
   );
 
-  // Click add to cart 6 times
+
   await page.click(
-    "div.index_usBtn__2KlEx index_red__kx6Ql index_btnFull__F7k90"
+    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
   );
 
-  console.log("Added 6 items to cart");
+  await page.click(
+    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
+  );
+
+  await page.click(
+    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
+  );
+
+  console.log("Added 1 items to cart");
 }
 
 async function signIn(page, email, password) {

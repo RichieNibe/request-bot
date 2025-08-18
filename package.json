@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "description": "Popmart automation bot",
   "main": "popmart.js",
+  "bin": {
+    "popmart-bot": "popmart.js"
+  },
   "scripts": {
-    "build": "pkg popmart.js --targets node18-win-x64 --output dist/popmart-bot.exe",
-    "build-all": "pkg popmart.js --targets node18-win-x64,node18-macos-x64,node18-linux-x64 --out-path dist",
+    "build": "node build.js",
+    "build-windows": "pkg popmart.js --config pkg.config.json --targets node18-win-x64 --output dist/popmart-bot.exe",
+    "build-mac": "pkg popmart.js --config pkg.config.json --targets node18-macos-x64 --output dist/popmart-bot-mac",
+    "build-all": "pkg popmart.js --config pkg.config.json --targets node18-win-x64,node18-macos-x64,node18-linux-x64 --out-path dist",
     "start": "node popmart.js"
   },
   "pkg": {
@@ -15,6 +20,11 @@
     "outputPath": "dist",
     "options": [
       "--no-bytecode"
+    ],
+    "assets": [
+      "node_modules/puppeteer/.local-chromium/**/*",
+      "node_modules/puppeteer-extra-plugin-stealth/**/*",
+      "node_modules/puppeteer-extra-plugin-stealth/evasions/**/*"
     ]
   },
   "dependencies": {
@@ -26,6 +36,7 @@
     "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
+    "@vercel/ncc": "^0.38.3",
     "pkg": "^5.8.1"
   }
 }

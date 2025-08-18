@@ -1,0 +1,14 @@
+{
+    "scripts": [
+        "node_modules/puppeteer-extra-plugin-stealth/**/*"
+    ],
+    "assets": [
+        "node_modules/puppeteer/.local-chromium/**/*",
+        "node_modules/puppeteer-extra-plugin-stealth/**/*"
+    ],
+    "targets": [
+        "node18-win-x64",
+        "node18-macos-x64"
+    ],
+    "outputPath": "dist"
+}
