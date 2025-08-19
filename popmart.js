@@ -4,7 +4,7 @@ const fs = require("fs");
 require('dotenv').config();
 const puppeteer = require("puppeteer-extra");
 const nodemailer = require("nodemailer");
-const prompt = require("prompt-sync")({ sigint: true });
+
 const { execSync } = require("child_process");
 
 // Load stealth plugin safely after path is ready
@@ -85,12 +85,76 @@ function findChrome() {
   return null;
 }
 
-// Prompt for Popmart credentials, recipient email, and product link
+// Parse command line arguments
+const args = process.argv.slice(2);
+let username, password, recipient, productLink, quantity = 1;
+
+// Simple command line argument parsing
+for (let i = 0; i < args.length; i++) {
+  switch (args[i]) {
+    case '--username':
+    case '-u':
+      username = args[i + 1];
+      i++;
+      break;
+    case '--password':
+    case '-p':
+      password = args[i + 1];
+      i++;
+      break;
+    case '--email':
+    case '-e':
+      recipient = args[i + 1];
+      i++;
+      break;
+    case '--link':
+    case '-l':
+      productLink = args[i + 1];
+      i++;
+      break;
+    case '--quantity':
+    case '-q':
+      quantity = parseInt(args[i + 1]);
+      if (isNaN(quantity) || quantity < 1) {
+        console.error('Error: Quantity must be a positive number');
+        process.exit(1);
+      }
+      i++;
+      break;
+    case '--help':
+    case '-h':
+      console.log(`
+Usage: node popmart.js [options]
+
+Options:
+  -u, --username <email>    Your Popmart email
+  -p, --password <password> Your Popmart password
+  -e, --email <email>       Recipient email for confirmation
+  -l, --link <url>          Popmart product link
+  -q, --quantity <number>   Number of items to add to cart (default: 1)
+  -h, --help                Show this help message
+
+Example:
+  node popmart.js -u "your@email.com" -p "yourpassword" -e "recipient@email.com" -l "https://www.popmart.com/us/product/123" -q 5
+      `);
+      process.exit(0);
+      break;
+  }
+}
+
+// Validate required arguments
+if (!username || !password || !recipient || !productLink) {
+  console.error('Error: Missing required arguments');
+  console.log('Use --help for usage information');
+  process.exit(1);
+}
+
 console.log("=== Popmart Bot Setup ===");
-const username = prompt("Enter your Popmart email: ");
-const password = prompt("Enter your Popmart password: ", { echo: "*" });
-const recipient = prompt("Enter the recipient email for confirmation: ");
-const productLink = prompt("Enter the Popmart product link: ");
+console.log(`Username: ${username}`);
+console.log(`Recipient: ${recipient}`);
+console.log(`Product Link: ${productLink}`);
+console.log(`Quantity: ${quantity}`);
+console.log("Starting bot...\n");
 
 // Configure your transporter (example uses Gmail)
 const transporter = nodemailer.createTransport({
@@ -166,27 +230,27 @@ async function loadPage() {
   return { browser, page };
 }
 
-async function addToCart(page) {
-  console.log("Adding items to cart...");
+async function addToCart(page, quantity) {
+  console.log(`Adding ${quantity} items to cart...`);
 
   await page.waitForSelector(
     ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
   );
 
+  // Click the add to cart button the specified number of times
+  for (let i = 0; i < quantity; i++) {
+    await page.click(
+      ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
+    );
+    console.log(`Added item ${i + 1} to cart`);
+    
+    // Small delay between clicks to avoid overwhelming the page
+    if (i < quantity - 1) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+  }
 
-  await page.click(
-    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
-  );
-
-  await page.click(
-    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
-  );
-
-  await page.click(
-    ".index_usBtn__2KlEx.index_red__kx6Ql.index_btnFull__F7k90"
-  );
-
-  console.log("Added 1 items to cart");
+  console.log(`Successfully added ${quantity} items to cart`);
 }
 
 async function signIn(page, email, password) {
@@ -244,17 +308,14 @@ async function run() {
     await signIn(page, username, password);
 
     console.log("Navigating to product page...");
-    await page.goto(productLink, {
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
+    await page.goto(productLink);
 
 
-    await addToCart(page);
+    await addToCart(page, quantity);
 
     await sendEmail(
       "Popmart Bot Success",
-      "The bot completed successfully! 6 items have been added to your cart."
+      `The bot completed successfully! ${quantity} items have been added to your cart.`
     );
     console.log("Bot completed successfully!");
 
@@ -271,7 +332,7 @@ async function run() {
 
     // Keep console open to show error
     console.log("Press any key to exit...");
-    prompt("");
+    process.stdin.read();
   }
 }
 
@@ -279,7 +340,7 @@ async function run() {
 process.on("unhandledRejection", (error) => {
   console.error("Unhandled rejection:", error);
   console.log("Press any key to exit...");
-  prompt("");
+  process.stdin.read();
   process.exit(1);
 });
 
