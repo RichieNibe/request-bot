@@ -87,21 +87,11 @@ function findChrome() {
 
 // Parse command line arguments
 const args = process.argv.slice(2);
-let username, password, recipient, productLink, quantity = 1;
+let recipient, productLink, quantity = 1;
 
 // Simple command line argument parsing
 for (let i = 0; i < args.length; i++) {
   switch (args[i]) {
-    case '--username':
-    case '-u':
-      username = args[i + 1];
-      i++;
-      break;
-    case '--password':
-    case '-p':
-      password = args[i + 1];
-      i++;
-      break;
     case '--email':
     case '-e':
       recipient = args[i + 1];
@@ -127,15 +117,13 @@ for (let i = 0; i < args.length; i++) {
 Usage: node popmart.js [options]
 
 Options:
-  -u, --username <email>    Your Popmart email
-  -p, --password <password> Your Popmart password
   -e, --email <email>       Recipient email for confirmation
   -l, --link <url>          Popmart product link
   -q, --quantity <number>   Number of items to add to cart (default: 1)
   -h, --help                Show this help message
 
 Example:
-  node popmart.js -u "your@email.com" -p "yourpassword" -e "recipient@email.com" -l "https://www.popmart.com/us/product/123" -q 5
+  node popmart.js -e "recipient@email.com" -l "https://www.popmart.com/us/product/123" -q 5
       `);
       process.exit(0);
       break;
@@ -143,14 +131,13 @@ Example:
 }
 
 // Validate required arguments
-if (!username || !password || !recipient || !productLink) {
+if (!recipient || !productLink) {
   console.error('Error: Missing required arguments');
   console.log('Use --help for usage information');
   process.exit(1);
 }
 
 console.log("=== Popmart Bot Setup ===");
-console.log(`Username: ${username}`);
 console.log(`Recipient: ${recipient}`);
 console.log(`Product Link: ${productLink}`);
 console.log(`Quantity: ${quantity}`);
@@ -182,7 +169,27 @@ async function sendEmail(subject, text) {
   }
 }
 
-async function loadPage() {
+async function connectToExistingBrowser() {
+  console.log("Attempting to connect to existing Chrome instance...");
+  
+  try {
+    // Try to connect to an existing Chrome instance
+    const browser = await puppeteer.connect({
+      browserURL: 'http://localhost:9222',
+      defaultViewport: null
+    });
+    
+    console.log("✅ Connected to existing Chrome instance");
+    return browser;
+  } catch (error) {
+    console.log("⚠️ Could not connect to existing Chrome instance");
+    console.log("Make sure you have Chrome running with remote debugging enabled");
+    console.log("Or run the login script first to launch Chrome");
+    throw new Error("No existing Chrome instance found. Please run the login script first.");
+  }
+}
+
+async function launchNewBrowser() {
   const chromePath = findChrome();
   if (!chromePath) {
     throw new Error(
@@ -190,7 +197,7 @@ async function loadPage() {
     );
   }
 
-  console.log("Launching browser...");
+  console.log("Launching new browser...");
   const browser = await puppeteer.launch({
     headless: false,
     executablePath: chromePath,
@@ -213,6 +220,20 @@ async function loadPage() {
     ]
   });
 
+  return browser;
+}
+
+async function loadPage() {
+  let browser;
+  
+  try {
+    // First try to connect to existing browser
+    browser = await connectToExistingBrowser();
+  } catch (error) {
+    // If that fails, launch a new browser
+    browser = await launchNewBrowser();
+  }
+
   const page = await browser.newPage();
 
   // Set user agent
@@ -225,7 +246,6 @@ async function loadPage() {
       get: () => undefined,
     });
   });
-
 
   return { browser, page };
 }
@@ -253,43 +273,7 @@ async function addToCart(page, quantity) {
   console.log(`Successfully added ${quantity} items to cart`);
 }
 
-async function signIn(page, email, password) {
-  console.log("Signing in...");
-  try {
-    await page.waitForSelector(".index_ipInConutry__BoVSZ");
-    await page.click(".index_ipInConutry__BoVSZ");
-  } catch (error) {
-    console.log("Country selection button not found");
-  }
 
-  try {
-    await page.waitForSelector(".policy_acceptBtn__ZNU71");
-    await page.click(".policy_acceptBtn__ZNU71");
-  } catch (error) {
-    console.log("Policy button not found or already accepted");
-  }
-  // Click the checkbox first
-  try {
-    await page.waitForSelector(".ant-checkbox-input", { timeout: 5000 });
-    await page.click(".ant-checkbox-input");
-    console.log("Checkbox clicked");
-  } catch (error) {
-    console.log("Checkbox not found or already checked");
-  }
-
-  await page.waitForSelector("#email");
-  await page.type("#email", email);
-
-  await page.waitForSelector("button[type='button']");
-  await page.click("button[type='button']");
-
-  await page.waitForSelector("#password");
-  await page.type("#password", password);
-  await page.waitForSelector("button[type='submit']", { timeout: 1000 });
-  await page.click("button[type='submit']");
-
-  console.log("Login attempted");
-}
 
 async function run() {
   let browser;
@@ -297,15 +281,6 @@ async function run() {
     console.log("Starting Popmart bot...");
     const { browser: br, page } = await loadPage();
     browser = br;
-
-    console.log("Navigating to login page...");
-    await page.goto("https://www.popmart.com/us/user/login", {
-      waitUntil: 'networkidle2'
-    });
-
-
-
-    await signIn(page, username, password);
 
     console.log("Navigating to product page...");
     await page.goto(productLink);
@@ -321,10 +296,34 @@ async function run() {
 
     // Keep browser open for 5 seconds so user can see results
     await new Promise((resolve) => setTimeout(resolve, 5000));
-    await browser.close();
+    
+    // Only close the tab, not the entire browser
+    console.log("Closing product tab...");
+    await page.close();
+    
+    // If we launched a new browser (not connected to existing), close it
+    if (!browser._connection) {
+      console.log("Closing browser...");
+      await browser.close();
+    } else {
+      console.log("Keeping browser open - your login session is preserved");
+    }
   } catch (error) {
     console.error("Bot failed:", error.message);
-    if (browser) await browser.close();
+    if (browser) {
+      // Only close the tab if it exists, not the entire browser
+      if (page && !page.isClosed()) {
+        console.log("Closing product tab due to error...");
+        await page.close();
+      }
+      
+      // If we launched a new browser (not connected to existing), close it
+      if (!browser._connection) {
+        await browser.close();
+      } else {
+        console.log("Keeping browser open - your login session is preserved");
+      }
+    }
     await sendEmail(
       "Popmart Bot Failed",
       `The bot failed with error: ${error.message}`
